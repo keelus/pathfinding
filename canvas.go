@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"image/color"
+	"math"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -50,33 +51,12 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 
 	cellSize := (c.w - len(c.grid.Cells)) / len(c.grid.Cells)
 
-	// startCell := ebiten.NewImage(int(cellSize), int(cellSize))
-	// startCell.Fill(color.RGBA{255, 0, 0, 255})
-	// startCellOp := ebiten.DrawImageOptions{}
-	// startCellOp.GeoM.Translate(c.x+float64(c.grid.Start.Y)*cellSize+1, c.y+float64(c.grid.Start.X)*cellSize+1)
-	// screen.DrawImage(startCell, &startCellOp)
-
-	// endCell := ebiten.NewImage(int(cellSize), int(cellSize))
-	// endCell.Fill(color.RGBA{0, 255, 0, 255})
-	// endCellOp := ebiten.DrawImageOptions{}
-	// endCellOp.GeoM.Translate(c.x+float64(c.grid.End.Y)*cellSize+1, c.y+float64(c.grid.End.X)*cellSize+1)
-	// screen.DrawImage(endCell, &endCellOp)
-
 	rowSize := c.w * 4
 	bytes := make([]byte, c.w*c.w*4)
 
 	for i := range bytes {
 		bytes[i] = 0x32
 	}
-
-	// for i := 0; i < iCellSize; i++ {
-	// 	for j := 0; j < iCellSize; j++ {
-	// 		bytes[i*rowSize+4*j] = 0xff
-	// 		bytes[i*rowSize+4*j+1] = 0xff
-	// 		bytes[i*rowSize+4*j+2] = 0xff
-	// 		bytes[i*rowSize+4*j+3] = 0xff
-	// 	}
-	// }
 
 	for i, row := range c.grid.Cells {
 		for j, node := range row {
@@ -92,6 +72,8 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 				nodeColor = color.RGBA{243, 240, 90, 255}
 			} else if node.Visited {
 				nodeColor = color.RGBA{66, 135, 245, 255}
+			} else if node.Added {
+				nodeColor = color.RGBA{50, 168, 82, 255}
 			}
 
 			drawNodePixels(i, j, cellSize, rowSize, &bytes, nodeColor)
@@ -99,46 +81,6 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 	}
 
 	c.rect.WritePixels(bytes)
-
-	// for i := -1; i < len(c.grid.Cells); i++ {
-	// 	line := ebiten.NewImage(1, c.h)
-	// 	line.Fill(color.RGBA{255, 0, 0, 255})
-	// 	op := ebiten.DrawImageOptions{}
-	// 	op.GeoM.Translate(float64((i+1)*cellSize)+float64(i)+1, 0)
-	// 	c.rect.DrawImage(line, &op)
-	// }
-
-	// for j := -1; j < len(c.grid.Cells); j++ {
-	// 	line := ebiten.NewImage(c.w, 1)
-	// 	line.Fill(color.RGBA{255, 0, 0, 255})
-	// 	op := ebiten.DrawImageOptions{}
-	// 	op.GeoM.Translate(0, float64((j+1)*cellSize)+float64(j)+1)
-	// 	c.rect.DrawImage(line, &op)
-	// }
-
-	// borderL := ebiten.NewImage(1, c.h)
-	// borderL.Fill(color.RGBA{50, 50, 50, 255})
-	// borderLOp := ebiten.DrawImageOptions{}
-	// borderLOp.GeoM.Translate(0, 0)
-	// c.rect.DrawImage(borderL, &borderLOp)
-
-	// borderR := ebiten.NewImage(1, c.h)
-	// borderR.Fill(color.RGBA{50, 50, 50, 255})
-	// borderROp := ebiten.DrawImageOptions{}
-	// borderROp.GeoM.Translate(float64(c.w)-1, 0)
-	// c.rect.DrawImage(borderR, &borderROp)
-
-	// borderU := ebiten.NewImage(c.w, 1)
-	// borderU.Fill(color.RGBA{50, 50, 50, 255})
-	// borderUOp := ebiten.DrawImageOptions{}
-	// borderUOp.GeoM.Translate(0, 0)
-	// c.rect.DrawImage(borderU, &borderUOp)
-
-	// borderD := ebiten.NewImage(c.w, 1)
-	// borderD.Fill(color.RGBA{50, 50, 50, 255})
-	// borderDOp := ebiten.DrawImageOptions{}
-	// borderDOp.GeoM.Translate(0, float64(c.h)-1)
-	// c.rect.DrawImage(borderD, &borderDOp)
 }
 
 func drawNodePixels(cellI, cellJ int, cellSize int, rowSize int, bytes *[]byte, cellColor color.RGBA) {
@@ -153,4 +95,28 @@ func drawNodePixels(cellI, cellJ int, cellSize int, rowSize int, bytes *[]byte, 
 			(*bytes)[index+3] = cellColor.A
 		}
 	}
+}
+
+func mousePosCoords(canvasA, canvasB *Canvas, pos_x, pos_y int) (int, int, *Canvas) {
+	var clickedCanvas *Canvas = nil
+
+	if pos_x >= int(canvasA.x) && pos_x <= int(canvasA.x)+canvasA.w && pos_y >= int(canvasA.y) && pos_y <= int(canvasA.y)+canvasA.h {
+		clickedCanvas = canvasA
+	} else if pos_x >= int(canvasB.x) && pos_x <= int(canvasB.x)+canvasB.w && pos_y >= int(canvasB.y) && pos_y <= int(canvasA.y)+canvasB.h {
+		clickedCanvas = canvasB
+	}
+
+	if clickedCanvas == nil {
+		return -1, -1, nil
+	}
+
+	cellSize := (clickedCanvas.w) / len(clickedCanvas.grid.Cells)
+	x, y := pos_x-int(clickedCanvas.x), pos_y-int(clickedCanvas.y)
+	j, i := int(math.Floor(float64(x)/float64(cellSize))), int(math.Floor(float64(y)/float64(cellSize)))
+
+	if i >= 0 && i < len(clickedCanvas.grid.Cells) && j >= 0 && j < len(clickedCanvas.grid.Cells[0]) {
+		return i, j, clickedCanvas
+	}
+
+	return -1, -1, nil
 }

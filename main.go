@@ -1,11 +1,10 @@
 package main
 
 import (
-	"image"
 	_ "image/png"
 	"io/ioutil"
 	"log"
-	"math"
+	"pathfinding/pair"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
@@ -45,11 +44,19 @@ type Game struct {
 
 func (g *Game) Update() error {
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
-		drawing = true
+		pos_x, pos_y := ebiten.CursorPosition()
+
+		if _, _, canvas := mousePosCoords(&canvasA, &canvasB, pos_x, pos_y); canvas != nil {
+			drawing = true
+		}
 	}
 
 	if inpututil.IsMouseButtonJustReleased(ebiten.MouseButtonLeft) {
-		drawing = false
+		pos_x, pos_y := ebiten.CursorPosition()
+
+		if _, _, canvas := mousePosCoords(&canvasA, &canvasB, pos_x, pos_y); canvas != nil {
+			drawing = false
+		}
 	}
 
 	if canvasA.grid.Status != STATUS_PATHING && canvasB.grid.Status != STATUS_PATHING {
@@ -65,25 +72,10 @@ func (g *Game) Update() error {
 		if inpututil.IsKeyJustPressed(ebiten.KeyS) {
 			pos_x, pos_y := ebiten.CursorPosition()
 
-			if pos_x >= int(canvasA.x) && pos_x <= int(canvasA.x)+canvasA.w && pos_y >= int(canvasA.y) && pos_y <= int(canvasA.y)+canvasA.h {
-				cellSize := (canvasA.w) / len(canvasA.grid.Cells)
-				x, y := pos_x-int(canvasA.x), pos_y-int(canvasA.y)
-				j, i := int(math.Floor(float64(x)/float64(cellSize))), int(math.Floor(float64(y)/float64(cellSize)))
-
-				if !canvasA.grid.Cells[i][j].IsWall && !canvasA.grid.End.Eq(image.Point{i, j}) {
-					canvasA.grid.Start = image.Point{i, j}
-					canvasB.grid.Start = image.Point{i, j}
-				}
-			}
-
-			if pos_x >= int(canvasB.x) && pos_x <= int(canvasB.x)+canvasB.w && pos_y >= int(canvasB.y) && pos_y <= int(canvasB.y)+canvasB.h {
-				cellSize := (canvasB.w) / len(canvasB.grid.Cells)
-				x, y := pos_x-int(canvasB.x), pos_y-int(canvasB.y)
-				j, i := int(math.Floor(float64(x)/float64(cellSize))), int(math.Floor(float64(y)/float64(cellSize)))
-
-				if !canvasA.grid.Cells[i][j].IsWall && !canvasA.grid.End.Eq(image.Point{i, j}) {
-					canvasA.grid.Start = image.Point{i, j}
-					canvasB.grid.Start = image.Point{i, j}
+			if i, j, canvas := mousePosCoords(&canvasA, &canvasB, pos_x, pos_y); canvas != nil {
+				if !canvas.grid.Cells[i][j].IsWall && !canvas.grid.End.Eq(pair.Pair{i, j}) {
+					canvasA.grid.Start = pair.Pair{i, j}
+					canvasB.grid.Start = pair.Pair{i, j}
 				}
 			}
 		}
@@ -91,28 +83,13 @@ func (g *Game) Update() error {
 		if inpututil.IsKeyJustPressed(ebiten.KeyE) {
 			pos_x, pos_y := ebiten.CursorPosition()
 
-			if pos_x >= int(canvasA.x) && pos_x <= int(canvasA.x)+canvasA.w && pos_y >= int(canvasA.y) && pos_y <= int(canvasA.y)+canvasA.h {
-				cellSize := (canvasA.w) / len(canvasA.grid.Cells)
-				x, y := pos_x-int(canvasA.x), pos_y-int(canvasA.y)
-				j, i := int(math.Floor(float64(x)/float64(cellSize))), int(math.Floor(float64(y)/float64(cellSize)))
-
-				if !canvasA.grid.Cells[i][j].IsWall && !canvasA.grid.Start.Eq(image.Point{i, j}) {
-					canvasA.grid.End = image.Point{i, j}
-					canvasB.grid.End = image.Point{i, j}
-				}
-			}
-
-			if pos_x >= int(canvasB.x) && pos_x <= int(canvasB.x)+canvasB.w && pos_y >= int(canvasB.y) && pos_y <= int(canvasB.y)+canvasB.h {
-				cellSize := (canvasB.w) / len(canvasB.grid.Cells)
-				x, y := pos_x-int(canvasB.x), pos_y-int(canvasB.y)
-				j, i := int(math.Floor(float64(x)/float64(cellSize))), int(math.Floor(float64(y)/float64(cellSize)))
-				if !canvasA.grid.Cells[i][j].IsWall && !canvasA.grid.Start.Eq(image.Point{i, j}) {
-					canvasA.grid.End = image.Point{i, j}
-					canvasB.grid.End = image.Point{i, j}
+			if i, j, canvas := mousePosCoords(&canvasA, &canvasB, pos_x, pos_y); canvas != nil {
+				if !canvas.grid.Cells[i][j].IsWall && !canvas.grid.Start.Eq(pair.Pair{i, j}) {
+					canvasA.grid.End = pair.Pair{i, j}
+					canvasB.grid.End = pair.Pair{i, j}
 				}
 			}
 		}
-
 	}
 
 	if canvasA.grid.Status == STATUS_IDLE && canvasB.grid.Status == STATUS_IDLE {
@@ -133,23 +110,8 @@ func (g *Game) Update() error {
 	if drawing {
 		pos_x, pos_y := ebiten.CursorPosition()
 
-		if pos_x >= int(canvasA.x) && pos_x <= int(canvasA.x)+canvasA.w && pos_y >= int(canvasA.y) && pos_y <= int(canvasA.y)+canvasA.h {
-			cellSize := (canvasA.w) / len(canvasA.grid.Cells)
-			x, y := pos_x-int(canvasA.x), pos_y-int(canvasA.y)
-			j, i := int(math.Floor(float64(x)/float64(cellSize))), int(math.Floor(float64(y)/float64(cellSize)))
-
-			if !canvasA.grid.Start.Eq(image.Point{i, j}) && !canvasA.grid.End.Eq(image.Point{i, j}) {
-				canvasA.grid.Cells[i][j].IsWall = activeTool == PENCIL
-				canvasB.grid.Cells[i][j].IsWall = activeTool == PENCIL
-			}
-		}
-
-		if pos_x >= int(canvasB.x) && pos_x <= int(canvasB.x)+canvasB.w && pos_y >= int(canvasB.y) && pos_y <= int(canvasB.y)+canvasB.h {
-			cellSize := (canvasB.w) / len(canvasB.grid.Cells)
-			x, y := pos_x-int(canvasB.x), pos_y-int(canvasB.y)
-			j, i := int(math.Floor(float64(x)/float64(cellSize))), int(math.Floor(float64(y)/float64(cellSize)))
-
-			if !canvasA.grid.Start.Eq(image.Point{i, j}) && !canvasA.grid.End.Eq(image.Point{i, j}) {
+		if i, j, canvas := mousePosCoords(&canvasA, &canvasB, pos_x, pos_y); canvas != nil {
+			if !canvas.grid.Start.Eq(pair.Pair{i, j}) && !canvas.grid.End.Eq(pair.Pair{i, j}) {
 				canvasA.grid.Cells[i][j].IsWall = activeTool == PENCIL
 				canvasB.grid.Cells[i][j].IsWall = activeTool == PENCIL
 			}
@@ -163,7 +125,6 @@ func (g *Game) Update() error {
 func (g *Game) Draw(screen *ebiten.Image) {
 	canvasA.Draw(screen)
 	canvasB.Draw(screen)
-
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -171,6 +132,9 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 }
 
 func main() {
+	ebiten.SetWindowSize(screenWidth, screenHeight)
+	ebiten.SetWindowTitle("Dijkstra vs A*")
+
 	fontData, err := ioutil.ReadFile("./mononoki_bold.ttf")
 	if err != nil {
 		log.Fatalf("Error opening the font.")
@@ -190,16 +154,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("Dijkstra vs A*")
-
 	activeTool = PENCIL
 
 	canvasA = NewCanvas(550, 550, 200, 40, "Dijkstra")
 	canvasB = NewCanvas(550, 550, 800, 40, "A*")
 
-	canvasA.SetGrid(NewGrid(15, image.Point{3, 10}, image.Point{0, 12}))
-	canvasB.SetGrid(NewGrid(15, image.Point{3, 10}, image.Point{0, 12}))
+	canvasA.SetGrid(NewGrid(30, pair.New(4, 5), pair.New(1, 2)))
+	canvasB.SetGrid(NewGrid(30, pair.New(4, 5), pair.New(1, 2)))
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
 		log.Fatal(err)
