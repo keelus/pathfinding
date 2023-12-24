@@ -97,6 +97,13 @@ func (grid *Grid) DoDijkstra() {
 	heap.Init(&pq)
 
 	for pq.Len() > 0 {
+		select {
+		case <-stopSignal:
+			grid.Status = STATUS_IDLE
+			return
+		default:
+		}
+
 		grid.Iterations++
 		time.Sleep(time.Millisecond * time.Duration(MS_COOLDOWN))
 
@@ -161,6 +168,13 @@ func (grid *Grid) DoAStar() {
 	heap.Init(&pq)
 
 	for pq.Len() > 0 {
+		select {
+		case <-stopSignal:
+			grid.Status = STATUS_IDLE
+			return
+		default:
+		}
+
 		grid.Iterations++
 		time.Sleep(time.Duration(MS_COOLDOWN) * time.Millisecond)
 

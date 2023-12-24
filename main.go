@@ -36,6 +36,8 @@ var (
 
 	buttonPencil, buttonEraser, buttonFlagStart, buttonFlagEnd, buttonCleanState, buttonCleanCanvas, buttonPlay, buttonMsMinus, buttonMsPlus Button
 	categoryTools, categoryClear, categoryCooldown                                                                                           string
+
+	stopSignal chan struct{}
 )
 
 type Tool string
@@ -52,7 +54,6 @@ type Game struct {
 }
 
 func (g *Game) Update() error {
-
 	x, y := ebiten.CursorPosition()
 	buttonPencil.hover(x, y)
 	buttonEraser.hover(x, y)
@@ -63,6 +64,14 @@ func (g *Game) Update() error {
 	buttonPlay.hover(x, y)
 	buttonMsMinus.hover(x, y)
 	buttonMsPlus.hover(x, y)
+
+	if canvasA.grid.Status == STATUS_PATHING || canvasB.grid.Status == STATUS_PATHING {
+		buttonPlay.selected = true
+		buttonPlay.title = "Stop"
+	} else if canvasA.grid.Status != STATUS_PATHING && canvasB.grid.Status != STATUS_PATHING {
+		buttonPlay.selected = false
+		buttonPlay.title = "Play"
+	}
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		if buttonPencil.hovered {
@@ -105,15 +114,31 @@ func (g *Game) Update() error {
 				canvasB.grid.Restart(true)
 				go canvasA.grid.DoDijkstra()
 				go canvasB.grid.DoAStar()
-				buttonPlay.selected = true
+				stopSignal = make(chan struct{})
+			} else {
+				close(stopSignal)
 			}
 		} else if buttonMsMinus.hovered {
-			if MS_COOLDOWN > 0 {
+			if MS_COOLDOWN <= 10 {
+				if MS_COOLDOWN > 0 {
+					MS_COOLDOWN--
+				}
+			} else if MS_COOLDOWN <= 20 {
+				MS_COOLDOWN -= 5
+			} else if MS_COOLDOWN > 20 && MS_COOLDOWN <= 100 {
 				MS_COOLDOWN -= 10
+			} else if MS_COOLDOWN > 100 {
+				MS_COOLDOWN -= 100
 			}
 		} else if buttonMsPlus.hovered {
-			if MS_COOLDOWN < 1000 {
+			if MS_COOLDOWN < 10 {
+				MS_COOLDOWN++
+			} else if MS_COOLDOWN < 20 {
+				MS_COOLDOWN += 5
+			} else if MS_COOLDOWN >= 20 && MS_COOLDOWN < 100 {
 				MS_COOLDOWN += 10
+			} else if MS_COOLDOWN >= 100 && MS_COOLDOWN < 1000 {
+				MS_COOLDOWN += 100
 			}
 		}
 	}
