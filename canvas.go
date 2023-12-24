@@ -36,18 +36,17 @@ func NewCanvas(w, h int, x, y float64, title string) Canvas {
 		op:    op,
 		title: title,
 		x:     x, y: y, w: w, h: h,
-		titleW: text.BoundString(loadedFont, title).Dx(),
+		titleW: text.BoundString(mononokiFFace, title).Dx(),
 	}
 }
 
 func (c *Canvas) SetGrid(grid Grid) {
+	canvasSize = len(grid.Cells)
+	cellSize = (c.w - len(grid.Cells)) / len(grid.Cells)
 	c.grid = grid
 }
 
 func (c *Canvas) Draw(screen *ebiten.Image) {
-	screen.DrawImage(c.rect, &c.op)
-	text.Draw(screen, c.title, loadedFont, int(c.x)+c.w/2-c.titleW/2, 33, color.White)
-
 	textColor := color.RGBA{255, 255, 255, 255}
 	if c.grid.Status == STATUS_END_NOPATH {
 		textColor = color.RGBA{213, 60, 60, 255}
@@ -55,17 +54,14 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 		textColor = color.RGBA{60, 213, 60, 255}
 	}
 
-	var diff time.Duration
+	timeDiff := time.Now().Sub(c.grid.StartTime)
 	if c.grid.Status != STATUS_PATHING {
-		diff = c.grid.EndTime.Sub(c.grid.StartTime)
-	} else {
-		diff = time.Now().Sub(c.grid.StartTime)
+		timeDiff = c.grid.EndTime.Sub(c.grid.StartTime)
 	}
-	visualTime := fmt.Sprintf("%.2fs", diff.Seconds())
-	text.Draw(screen, fmt.Sprintf("Path length: %d | Iterations: %d | Time: %s", c.grid.PathLength, c.grid.Iterations, visualTime), loadedFont, int(c.x)+c.w/2-240, int(c.y)+c.h+22, textColor)
+	text.Draw(screen, fmt.Sprintf("Path length: %d | Iterations: %d | Time: %.2fs",
+		c.grid.PathLength, c.grid.Iterations, timeDiff.Seconds()), mononokiFFace, int(c.x)+c.w/2-240, int(c.y)+c.h+22, textColor)
 
-	cellSize := (c.w - len(c.grid.Cells)) / len(c.grid.Cells)
-
+	// Rect byte buffer
 	rowSize := c.w * 4
 	bytes := make([]byte, c.w*c.w*4)
 
@@ -98,13 +94,13 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 	}
 
 	c.rect.WritePixels(bytes)
+	screen.DrawImage(c.rect, &c.op)
+	text.Draw(screen, c.title, mononokiFFace, int(c.x)+c.w/2-c.titleW/2, 33, color.White)
 }
 
 func drawNodePixels(cellI, cellJ int, cellSize int, rowSize int, bytes *[]byte, cellColor color.RGBA) {
 	for i := 0; i < cellSize; i++ {
 		for j := 0; j < cellSize; j++ {
-			// index := base........ + vertical displa. + horizontal displaceme. + 1 row margin??
-
 			index := i * rowSize                // Vertical displacement
 			index += rowSize * cellI            // One pixel margin (between rows)
 			index += cellI * rowSize * cellSize // Vertical specific displacement
@@ -134,9 +130,9 @@ func mousePosCoords(canvasA, canvasB *Canvas, pos_x, pos_y int) (int, int, *Canv
 		return -1, -1, nil
 	}
 
-	cellSize := (clickedCanvas.w) / len(clickedCanvas.grid.Cells)
+	relativeCellSize := (clickedCanvas.w) / len(clickedCanvas.grid.Cells)
 	x, y := pos_x-int(clickedCanvas.x), pos_y-int(clickedCanvas.y)
-	j, i := int(math.Floor(float64(x)/float64(cellSize))), int(math.Floor(float64(y)/float64(cellSize)))
+	j, i := int(math.Floor(float64(x)/float64(relativeCellSize))), int(math.Floor(float64(y)/float64(relativeCellSize)))
 
 	if i >= 0 && i < len(clickedCanvas.grid.Cells) && j >= 0 && j < len(clickedCanvas.grid.Cells[0]) {
 		return i, j, clickedCanvas

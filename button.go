@@ -8,21 +8,21 @@ import (
 )
 
 type Button struct {
-	x, y           float64
-	w, h           int
-	rect           *ebiten.Image
-	op             ebiten.DrawImageOptions
-	title          string
-	titleW, titleH int
-	grid           Grid
-	buttonIcon     *ebiten.Image
+	x, y       float64
+	w, h       int
+	rect       *ebiten.Image
+	op         ebiten.DrawImageOptions
+	title      string
+	titleW     int
+	grid       Grid
+	buttonIcon *ebiten.Image
 
 	hovered  bool
-	selected bool
+	active   bool
 	disabled bool
 }
 
-func NewButton(w, h int, x, y float64, title string, selected bool, buttonIcon *ebiten.Image) Button {
+func NewButton(w, h int, x, y float64, title string, active bool, buttonIcon *ebiten.Image) Button {
 	rect := ebiten.NewImage(w, h)
 	rect.Fill(color.RGBA{255, 0, 0, 255})
 
@@ -34,91 +34,77 @@ func NewButton(w, h int, x, y float64, title string, selected bool, buttonIcon *
 		op:    op,
 		title: title,
 		x:     x, y: y, w: w, h: h,
-		titleW:     text.BoundString(loadedFont, title).Dx(),
-		titleH:     text.BoundString(loadedFont, title).Dy(),
-		selected:   selected,
+		titleW:     text.BoundString(mononokiFFace, title).Dx(),
+		active:     active,
 		buttonIcon: buttonIcon,
 	}
 }
 
-func (c *Button) Draw(screen *ebiten.Image) {
-	screen.DrawImage(c.rect, &c.op)
-
-	if c.buttonIcon == nil {
+func (b *Button) Draw(screen *ebiten.Image) {
+	if b.buttonIcon == nil {
 		textColor := color.RGBA{255, 255, 255, 255}
-		if c.disabled {
+		if b.disabled {
 			textColor = color.RGBA{0x4b, 0x4b, 0x4b, 255}
 		}
-		text.Draw(screen, c.title, loadedFont, int(c.x)+c.w/2-c.titleW/2, int(c.y)+c.h/2+18/2-5, textColor)
+		text.Draw(screen, b.title, mononokiFFace, int(b.x)+b.w/2-b.titleW/2, int(b.y)+b.h/2+18/2-5, textColor)
 	} else {
 		iconOps := ebiten.DrawImageOptions{}
-		iconOps.GeoM.Translate(c.x+2, c.y+2)
-		if c.disabled {
+		iconOps.GeoM.Translate(b.x+2, b.y+2)
+		if b.disabled {
 			iconOps.ColorScale.ScaleAlpha(0.3)
 		}
-		screen.DrawImage(c.buttonIcon, &iconOps)
+		screen.DrawImage(b.buttonIcon, &iconOps)
 	}
 
-	rowSize := c.w * 4
-	bytes := make([]byte, c.w*c.h*4)
-
-	IDLE_WIDTH := 1
-	ACTIVE_WIDTH := 2
+	rowSize := b.w * 4
+	bytes := make([]byte, b.w*b.h*4)
 
 	var bColor byte = 0x87
 	var bColorSelected byte = 0xff
-	if c.hovered {
+
+	if b.hovered {
 		bColor = 0xff
-	} else if c.disabled {
+	} else if b.disabled {
 		bColor = 0x4b
 		bColorSelected = 0x5b
 	}
 
-	for i := 0; i < rowSize; i++ {
-		for h := 0; h < IDLE_WIDTH; h++ {
-			bytes[i+rowSize*h] = bColor
-			bytes[i+rowSize*(c.h-1)-rowSize*h] = bColor
-		}
-	}
-
-	for i := 0; i < c.h; i++ {
-		for h := 0; h < IDLE_WIDTH; h++ {
-			bytes[rowSize*i+h*4] = bColor
-			bytes[rowSize*i+(h*4)+1] = bColor
-			bytes[rowSize*i+(h*4)+2] = bColor
-			bytes[rowSize*i+(h*4)+3] = bColor
-
-			bytes[rowSize*(i+1)-(h*4)-1] = bColor
-			bytes[rowSize*(i+1)-(h*4)-2] = bColor
-			bytes[rowSize*(i+1)-(h*4)-3] = bColor
-			bytes[rowSize*(i+1)-(h*4)-4] = bColor
-		}
-	}
-
-	if c.selected {
+	if !b.active {
 		for i := 0; i < rowSize; i++ {
-			for h := 0; h < ACTIVE_WIDTH; h++ {
-				bytes[i+rowSize*h] = bColorSelected
-				bytes[i+rowSize*(c.h-1)-rowSize*h] = bColorSelected
+			for h := 0; h < 1; h++ { // Border width = 1
+				bytes[i+rowSize*h] = bColor                 // Top border
+				bytes[i+rowSize*(b.h-1)-rowSize*h] = bColor // Bottom border
 			}
 		}
 
-		for i := 0; i < c.h; i++ {
-			for h := 0; h < ACTIVE_WIDTH; h++ {
-				bytes[rowSize*i+h*4] = bColorSelected
-				bytes[rowSize*i+(h*4)+1] = bColorSelected
-				bytes[rowSize*i+(h*4)+2] = bColorSelected
-				bytes[rowSize*i+(h*4)+3] = bColorSelected
+		for i := 0; i < b.h; i++ {
+			for h := 0; h < 1; h++ { // Border width = 1
+				for j := 0; j < 4; j++ {
+					bytes[rowSize*i+(h*4)+j] = bColor         // Left border
+					bytes[rowSize*(i+1)+(h*4)-(j+1)] = bColor // Right border
+				}
+			}
+		}
+	} else {
+		for i := 0; i < rowSize; i++ {
+			for h := 0; h < 2; h++ { // Border width = 2
+				bytes[i+rowSize*h] = bColorSelected                 // Top border
+				bytes[i+rowSize*(b.h-1)-rowSize*h] = bColorSelected // Bottom border
+			}
+		}
 
-				bytes[rowSize*(i+1)-(h*4)-1] = bColorSelected
-				bytes[rowSize*(i+1)-(h*4)-2] = bColorSelected
-				bytes[rowSize*(i+1)-(h*4)-3] = bColorSelected
-				bytes[rowSize*(i+1)-(h*4)-4] = bColorSelected
+		for i := 0; i < b.h; i++ {
+			for h := 0; h < 2; h++ { // Border width = 2
+				for j := 0; j < 4; j++ {
+					bytes[rowSize*i+(h*4)+j] = bColorSelected         // Left border
+					bytes[rowSize*(i+1)-(h*4)-(j+1)] = bColorSelected // Right border
+				}
 			}
 		}
 	}
 
-	c.rect.WritePixels(bytes)
+	b.rect.WritePixels(bytes)
+	screen.DrawImage(b.rect, &b.op)
 }
 
 func (b *Button) hover(x, y int) {

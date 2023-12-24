@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-var MS_COOLDOWN = 10
-
 const BASE_WEIGHT = 1
 
 type Status string
@@ -88,19 +86,16 @@ func (g *Grid) Restart(keepLayout bool) {
 func (grid *Grid) DoDijkstra() {
 	grid.StartTime = time.Now()
 	grid.Status = STATUS_PATHING
-	pq := PriorityQueue{}
-
-	grid.Start.Cost = 0
-	heap.Push(&pq, grid.Start)
 
 	for i, row := range grid.Cells {
 		for j := range row {
-			if &grid.Cells[i][j] != grid.Start {
-				grid.Cells[i][j].Cost = math.MaxInt
-			}
+			grid.Cells[i][j].Cost = math.MaxInt
 		}
 	}
 
+	grid.Start.Cost = 0
+
+	pq := PriorityQueue{grid.Start}
 	heap.Init(&pq)
 
 	for pq.Len() > 0 {
@@ -113,7 +108,7 @@ func (grid *Grid) DoDijkstra() {
 		}
 
 		grid.Iterations++
-		time.Sleep(time.Millisecond * time.Duration(MS_COOLDOWN))
+		time.Sleep(time.Millisecond * time.Duration(iterationCooldownMS))
 
 		u := heap.Pop(&pq).(*Node)
 
@@ -162,12 +157,11 @@ func (grid *Grid) DoDijkstra() {
 func (grid *Grid) DoAStar() {
 	grid.StartTime = time.Now()
 	grid.Status = STATUS_PATHING
+
 	for i := range grid.Cells {
 		for j := range grid.Cells[i] {
-			if grid.Start != &grid.Cells[i][j] {
-				grid.Cells[i][j].Gcost = math.MaxFloat64
-				grid.Cells[i][j].Cost = math.MaxFloat64
-			}
+			grid.Cells[i][j].Gcost = math.MaxFloat64
+			grid.Cells[i][j].Cost = math.MaxFloat64
 		}
 	}
 
@@ -187,7 +181,7 @@ func (grid *Grid) DoAStar() {
 		}
 
 		grid.Iterations++
-		time.Sleep(time.Duration(MS_COOLDOWN) * time.Millisecond)
+		time.Sleep(time.Duration(iterationCooldownMS) * time.Millisecond)
 
 		current := heap.Pop(&pq).(*Node)
 		current.Visited = true

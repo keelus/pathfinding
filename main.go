@@ -18,37 +18,44 @@ import (
 	"golang.org/x/image/font/opentype"
 )
 
+// WINDOW CONSTANTS
 const (
-	screenWidth  = 1400
-	screenHeight = 640
-
-	RECTANGLE_AMOUNT = 50
-	RECTANGLE_WIDTH  = screenWidth/RECTANGLE_AMOUNT - 1
-	RECTANGLE_MARGIN = 1
-
-	RECTANGLE_HEIGHT_MULT = screenHeight / RECTANGLE_AMOUNT
+	SCREEN_WIDTH  = 1400
+	SCREEN_HEIGHT = 640
 )
 
+// TOOL STATUS
 var (
-	loadedFont       font.Face
-	canvasA, canvasB Canvas
-
 	activeTool Tool
 	drawing    bool
+)
+
+// UI ELEMENTS
+var (
+	canvasA, canvasB Canvas
 
 	buttonPencil, buttonEraser, buttonFlagStart, buttonFlagEnd Button
 	buttonClearPath, buttonClearCanvas                         Button
 	buttonGenerateTerrain                                      Button
 	buttonTerrainSizeS, buttonTerrainSizeM, buttonTerrainSizeL Button
 	buttonPlay                                                 Button
+	buttonMsMinus, buttonMsPlus                                Button
 
-	buttonMsMinus, buttonMsPlus Button
-
-	categoryTools, categoryClear, categoryCooldown, categoryTerrainSize string
-
-	stopSignal chan struct{}
+	categoryTools, categoryClear, categoryTerrainSize, categoryCooldown string
 )
 
+// OTHERS
+var (
+	canvasSize int
+	cellSize   int
+
+	mononokiFFace font.Face
+	stopSignal    chan struct{}
+
+	iterationCooldownMS int
+)
+
+// MOUSE TOOLS
 type Tool string
 
 const (
@@ -58,6 +65,7 @@ const (
 	FLAG_END   Tool = "FLAG_END"
 )
 
+// CANVAS SIZES
 const (
 	SIZE_S int = 22
 	SIZE_M int = 55
@@ -65,41 +73,47 @@ const (
 )
 
 type Game struct {
-	count int
+	sc *ebiten.Image
 }
 
 func (g *Game) Update() error {
-	x, y := ebiten.CursorPosition()
-	buttonPencil.hover(x, y)
-	buttonEraser.hover(x, y)
-	buttonFlagStart.hover(x, y)
-	buttonFlagEnd.hover(x, y)
-	buttonClearPath.hover(x, y)
-	buttonClearCanvas.hover(x, y)
-	buttonGenerateTerrain.hover(x, y)
-	buttonTerrainSizeS.hover(x, y)
-	buttonTerrainSizeM.hover(x, y)
-	buttonTerrainSizeL.hover(x, y)
-	buttonPlay.hover(x, y)
-	buttonMsMinus.hover(x, y)
-	buttonMsPlus.hover(x, y)
+	// GET MOUSE POSITION
+	posX, posY := ebiten.CursorPosition()
 
-	if len(canvasA.grid.Cells) == SIZE_S {
-		buttonTerrainSizeS.selected = true
-		buttonTerrainSizeM.selected = false
-		buttonTerrainSizeL.selected = false
-	} else if len(canvasA.grid.Cells) == SIZE_M {
-		buttonTerrainSizeS.selected = false
-		buttonTerrainSizeM.selected = true
-		buttonTerrainSizeL.selected = false
-	} else {
-		buttonTerrainSizeS.selected = false
-		buttonTerrainSizeM.selected = false
-		buttonTerrainSizeL.selected = true
+	// BUTTON HOVER STATES
+	buttonPencil.hover(posX, posY)
+	buttonEraser.hover(posX, posY)
+	buttonFlagStart.hover(posX, posY)
+	buttonFlagEnd.hover(posX, posY)
+	buttonClearPath.hover(posX, posY)
+	buttonClearCanvas.hover(posX, posY)
+	buttonGenerateTerrain.hover(posX, posY)
+	buttonTerrainSizeS.hover(posX, posY)
+	buttonTerrainSizeM.hover(posX, posY)
+	buttonTerrainSizeL.hover(posX, posY)
+	buttonPlay.hover(posX, posY)
+	buttonMsMinus.hover(posX, posY)
+
+	buttonMsPlus.hover(posX, posY)
+
+	// BUTTON SELECTION STATES
+	switch canvasSize {
+	case SIZE_S:
+		buttonTerrainSizeS.active = true
+		buttonTerrainSizeM.active = false
+		buttonTerrainSizeL.active = false
+	case SIZE_M:
+		buttonTerrainSizeS.active = false
+		buttonTerrainSizeM.active = true
+		buttonTerrainSizeL.active = false
+	case SIZE_L:
+		buttonTerrainSizeS.active = false
+		buttonTerrainSizeM.active = false
+		buttonTerrainSizeL.active = true
 	}
 
 	if canvasA.grid.Status == STATUS_PATHING || canvasB.grid.Status == STATUS_PATHING {
-		buttonPlay.selected = true
+		buttonPlay.active = true
 		buttonPlay.title = "Stop"
 
 		buttonPencil.disabled = true
@@ -113,7 +127,7 @@ func (g *Game) Update() error {
 		buttonTerrainSizeM.disabled = true
 		buttonTerrainSizeL.disabled = true
 	} else if canvasA.grid.Status != STATUS_PATHING && canvasB.grid.Status != STATUS_PATHING {
-		buttonPlay.selected = false
+		buttonPlay.active = false
 		buttonPlay.title = "Play"
 
 		buttonPencil.disabled = false
@@ -128,31 +142,32 @@ func (g *Game) Update() error {
 		buttonTerrainSizeL.disabled = false
 	}
 
+	// BUTTON CLICKS
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) {
 		if buttonPencil.hovered {
 			activeTool = PENCIL
-			buttonPencil.selected = true
-			buttonEraser.selected = false
-			buttonFlagStart.selected = false
-			buttonFlagEnd.selected = false
+			buttonPencil.active = true
+			buttonEraser.active = false
+			buttonFlagStart.active = false
+			buttonFlagEnd.active = false
 		} else if buttonEraser.hovered {
 			activeTool = ERASER
-			buttonPencil.selected = false
-			buttonEraser.selected = true
-			buttonFlagStart.selected = false
-			buttonFlagEnd.selected = false
+			buttonPencil.active = false
+			buttonEraser.active = true
+			buttonFlagStart.active = false
+			buttonFlagEnd.active = false
 		} else if buttonFlagStart.hovered {
 			activeTool = FLAG_START
-			buttonPencil.selected = false
-			buttonEraser.selected = false
-			buttonFlagStart.selected = true
-			buttonFlagEnd.selected = false
+			buttonPencil.active = false
+			buttonEraser.active = false
+			buttonFlagStart.active = true
+			buttonFlagEnd.active = false
 		} else if buttonFlagEnd.hovered {
 			activeTool = FLAG_END
-			buttonPencil.selected = false
-			buttonEraser.selected = false
-			buttonFlagStart.selected = false
-			buttonFlagEnd.selected = true
+			buttonPencil.active = false
+			buttonEraser.active = false
+			buttonFlagStart.active = false
+			buttonFlagEnd.active = true
 		} else if buttonClearPath.hovered {
 			if canvasA.grid.Status != STATUS_PATHING && canvasB.grid.Status != STATUS_PATHING {
 				canvasA.grid.Restart(true)
@@ -196,38 +211,42 @@ func (g *Game) Update() error {
 				go canvasB.grid.DoAStar()
 				stopSignal = make(chan struct{})
 			} else {
-				close(stopSignal)
+				func() {
+					close(stopSignal)
+					for canvasA.grid.Status == STATUS_PATHING || canvasB.grid.Status == STATUS_PATHING {
+						// Just wait until both closed to prevent closing the closed channel. Can happen in high cooldown, when pressing
+						// the stop button multiple times.
+					}
+				}()
 			}
 		} else if buttonMsMinus.hovered {
-			if MS_COOLDOWN <= 10 {
-				if MS_COOLDOWN > 0 {
-					MS_COOLDOWN--
+			if iterationCooldownMS <= 10 {
+				if iterationCooldownMS > 0 {
+					iterationCooldownMS--
 				}
-			} else if MS_COOLDOWN <= 20 {
-				MS_COOLDOWN -= 5
-			} else if MS_COOLDOWN > 20 && MS_COOLDOWN <= 100 {
-				MS_COOLDOWN -= 10
-			} else if MS_COOLDOWN > 100 {
-				MS_COOLDOWN -= 100
+			} else if iterationCooldownMS <= 20 {
+				iterationCooldownMS -= 5
+			} else if iterationCooldownMS > 20 && iterationCooldownMS <= 100 {
+				iterationCooldownMS -= 10
+			} else if iterationCooldownMS > 100 {
+				iterationCooldownMS -= 100
 			}
 		} else if buttonMsPlus.hovered {
-			if MS_COOLDOWN < 10 {
-				MS_COOLDOWN++
-			} else if MS_COOLDOWN < 20 {
-				MS_COOLDOWN += 5
-			} else if MS_COOLDOWN >= 20 && MS_COOLDOWN < 100 {
-				MS_COOLDOWN += 10
-			} else if MS_COOLDOWN >= 100 && MS_COOLDOWN < 1000 {
-				MS_COOLDOWN += 100
+			if iterationCooldownMS < 10 {
+				iterationCooldownMS++
+			} else if iterationCooldownMS < 20 {
+				iterationCooldownMS += 5
+			} else if iterationCooldownMS >= 20 && iterationCooldownMS < 100 {
+				iterationCooldownMS += 10
+			} else if iterationCooldownMS >= 100 && iterationCooldownMS < 1000 {
+				iterationCooldownMS += 100
 			}
 		}
 	}
 
 	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonLeft) &&
 		canvasA.grid.Status != STATUS_PATHING && canvasB.grid.Status != STATUS_PATHING {
-		pos_x, pos_y := ebiten.CursorPosition()
-
-		if i, j, canvas := mousePosCoords(&canvasA, &canvasB, pos_x, pos_y); canvas != nil {
+		if i, j, canvas := mousePosCoords(&canvasA, &canvasB, posX, posY); canvas != nil {
 			switch activeTool {
 			case PENCIL, ERASER:
 				drawing = true
@@ -252,9 +271,7 @@ func (g *Game) Update() error {
 	}
 
 	if drawing {
-		pos_x, pos_y := ebiten.CursorPosition()
-
-		if i, j, canvas := mousePosCoords(&canvasA, &canvasB, pos_x, pos_y); canvas != nil {
+		if i, j, canvas := mousePosCoords(&canvasA, &canvasB, posX, posY); canvas != nil {
 			if !canvas.grid.Start.Coord.Eq(pair.New(i, j)) && !canvas.grid.End.Coord.Eq(pair.New(i, j)) {
 				canvasA.grid.Cells[i][j].IsWall = activeTool == PENCIL
 				canvasB.grid.Cells[i][j].IsWall = activeTool == PENCIL
@@ -262,11 +279,15 @@ func (g *Game) Update() error {
 		}
 	}
 
-	g.count++
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	if g.sc == nil {
+		g.sc = screen
+	}
+
+	// BUTTON DRAWING
 	buttonPencil.Draw(screen)
 	buttonEraser.Draw(screen)
 	buttonFlagStart.Draw(screen)
@@ -281,41 +302,48 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	buttonMsMinus.Draw(screen)
 	buttonMsPlus.Draw(screen)
 
+	// LEFT TEXTS DRAWING
 	textColor := color.RGBA{255, 255, 255, 255}
 	if canvasA.grid.Status == STATUS_PATHING || canvasB.grid.Status == STATUS_PATHING {
 		textColor = color.RGBA{0x4b, 0x4b, 0x4b, 255}
 	}
-	text.Draw(screen, categoryTools, loadedFont, 15, 55, textColor)
-	text.Draw(screen, categoryClear, loadedFont, 15, 210+40, textColor)
-	text.Draw(screen, "Canvas size", loadedFont, 15, 210+40+120, textColor)
-	text.Draw(screen, categoryCooldown, loadedFont, 15, screenHeight-135+30, color.White)
-	text.Draw(screen, fmt.Sprintf("%dms", MS_COOLDOWN), loadedFont, 80, screenHeight-105+30, color.White)
 
+	text.Draw(screen, categoryTools, mononokiFFace, 15, 55, textColor)
+	text.Draw(screen, categoryClear, mononokiFFace, 15, 210+40, textColor)
+	text.Draw(screen, "Canvas size", mononokiFFace, 15, 210+40+120, textColor)
+	text.Draw(screen, categoryCooldown, mononokiFFace, 15, SCREEN_HEIGHT-135+30, color.White)
+	text.Draw(screen, fmt.Sprintf("%dms", iterationCooldownMS), mononokiFFace, 80, SCREEN_HEIGHT-105+30, color.White)
+
+	// CANVAS DRAWING
 	canvasA.Draw(screen)
 	canvasB.Draw(screen)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return screenWidth, screenHeight
+	return SCREEN_WIDTH, SCREEN_HEIGHT
 }
 
 //go:embed all:assets/**
 var assets embed.FS
 
 func main() {
-	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("Dijkstra vs A*")
+	ebiten.SetWindowSize(SCREEN_WIDTH, SCREEN_HEIGHT)
+	ebiten.SetWindowTitle("pathfinding - keelus")
+	ebiten.SetWindowIcon([]image.Image{loadImage("assets/icons/greenFlag.png")})
 
-	loadedFont = getFont("assets/fonts/mononoki.ttf", 18)
+	mononokiFFace = getFont("assets/fonts/mononoki.ttf", 18)
 
 	activeTool = PENCIL
 
+	iterationCooldownMS = 10
+
+	// CREATE CANVAS & SET GRID (default: Medium)
 	canvasA = NewCanvas(550, 550, 200, 40, "Dijkstra")
 	canvasB = NewCanvas(550, 550, 800, 40, "A*")
-
 	canvasA.SetGrid(NewGrid(SIZE_M, pair.New(SIZE_M-1, 0), pair.New(0, SIZE_M-1)))
 	canvasB.SetGrid(NewGrid(SIZE_M, pair.New(SIZE_M-1, 0), pair.New(0, SIZE_M-1)))
 
+	// LEFT BUTTONS
 	buttonPencil = NewButton(50, 50, (200-100)/2, 100-35, "P", true, getImage("assets/icons/pencil.png"))
 	buttonEraser = NewButton(50, 50, (200-100)/2+50, 100-35, "E", false, getImage("assets/icons/eraser.png"))
 	buttonFlagStart = NewButton(50, 50, (200-100)/2, 150-35, "F1", false, getImage("assets/icons/greenFlag.png"))
@@ -332,9 +360,10 @@ func main() {
 
 	buttonPlay = NewButton(150, 40, (200-150)/2, 430+40, "Play", false, nil)
 
-	buttonMsMinus = NewButton(30, 30, (200-150)/2, screenHeight-125+30, "-", false, nil)
-	buttonMsPlus = NewButton(30, 30, (200-150)/2+120, screenHeight-125+30, "+", false, nil)
+	buttonMsMinus = NewButton(30, 30, (200-150)/2, SCREEN_HEIGHT-125+30, "-", false, nil)
+	buttonMsPlus = NewButton(30, 30, (200-150)/2+120, SCREEN_HEIGHT-125+30, "+", false, nil)
 
+	// LEFT TEXTS
 	categoryTools = "Tools"
 	categoryClear = "Clear"
 	categoryCooldown = "Cooldown"
@@ -344,6 +373,7 @@ func main() {
 	}
 }
 
+// getFont returns the font located at fpath, read from embed 'assets'. Path should start with 'assets/...'.
 func getFont(fpath string, size float64) font.Face {
 	fontData, err := assets.ReadFile("assets/fonts/mononoki.ttf")
 	if err != nil {
@@ -366,16 +396,22 @@ func getFont(fpath string, size float64) font.Face {
 	return fontType
 }
 
+// getImage returns the *ebiten.Image located at fpath, read from embed 'assets'. Path should start with 'assets/...'.
 func getImage(fpath string) *ebiten.Image {
-	iconBytes, err := assets.ReadFile(fpath)
+	return ebiten.NewImageFromImage(loadImage(fpath))
+}
+
+// getImage returns the *ebiten.Image located at fpath, read from embed 'assets'. Path should start with 'assets/...'.
+func loadImage(fpath string) image.Image {
+	imgBytes, err := assets.ReadFile(fpath)
 	if err != nil {
 		log.Fatalf("Error when opening the icon.")
 	}
 
-	img, _, err := image.Decode(bytes.NewReader(iconBytes))
+	img, _, err := image.Decode(bytes.NewReader(imgBytes))
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	return ebiten.NewImageFromImage(img)
+	return img
 }
