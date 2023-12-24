@@ -299,31 +299,14 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenWidth, screenHeight
 }
 
-//go:embed all:media/**
-var media embed.FS
+//go:embed all:assets/**
+var assets embed.FS
 
 func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Dijkstra vs A*")
 
-	fontData, err := media.ReadFile("media/fonts/mononoki.ttf")
-	if err != nil {
-		log.Fatalf("Error opening the font.")
-	}
-
-	tt, err := opentype.Parse(fontData)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	loadedFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    18,
-		DPI:     72,
-		Hinting: font.HintingVertical,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	loadedFont = getFont("assets/fonts/mononoki.ttf", 18)
 
 	activeTool = PENCIL
 
@@ -333,10 +316,10 @@ func main() {
 	canvasA.SetGrid(NewGrid(SIZE_M, pair.New(SIZE_M-1, 0), pair.New(0, SIZE_M-1)))
 	canvasB.SetGrid(NewGrid(SIZE_M, pair.New(SIZE_M-1, 0), pair.New(0, SIZE_M-1)))
 
-	buttonPencil = NewButton(50, 50, (200-100)/2, 100-35, "P", true, getImage("media/icons/pencil.png"))
-	buttonEraser = NewButton(50, 50, (200-100)/2+50, 100-35, "E", false, getImage("media/icons/eraser.png"))
-	buttonFlagStart = NewButton(50, 50, (200-100)/2, 150-35, "F1", false, getImage("media/icons/greenFlag.png"))
-	buttonFlagEnd = NewButton(50, 50, (200-100)/2+50, 150-35, "F2", false, getImage("media/icons/redFlag.png"))
+	buttonPencil = NewButton(50, 50, (200-100)/2, 100-35, "P", true, getImage("assets/icons/pencil.png"))
+	buttonEraser = NewButton(50, 50, (200-100)/2+50, 100-35, "E", false, getImage("assets/icons/eraser.png"))
+	buttonFlagStart = NewButton(50, 50, (200-100)/2, 150-35, "F1", false, getImage("assets/icons/greenFlag.png"))
+	buttonFlagEnd = NewButton(50, 50, (200-100)/2+50, 150-35, "F2", false, getImage("assets/icons/redFlag.png"))
 
 	buttonClearPath = NewButton(150, 40, (200-150)/2, 250-30+40, "Clear path", false, nil)
 	buttonClearCanvas = NewButton(150, 40, (200-150)/2, 290-30+40, "Clear canvas", false, nil)
@@ -361,8 +344,30 @@ func main() {
 	}
 }
 
+func getFont(fpath string, size float64) font.Face {
+	fontData, err := assets.ReadFile("assets/fonts/mononoki.ttf")
+	if err != nil {
+		log.Fatalf("Error opening the font.")
+	}
+	tt, err := opentype.Parse(fontData)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fontType, err := opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    size,
+		DPI:     72,
+		Hinting: font.HintingVertical,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	return fontType
+}
+
 func getImage(fpath string) *ebiten.Image {
-	iconBytes, err := media.ReadFile(fpath)
+	iconBytes, err := assets.ReadFile(fpath)
 	if err != nil {
 		log.Fatalf("Error when opening the icon.")
 	}
