@@ -45,6 +45,9 @@ type Grid struct {
 
 	PathLength int
 	Iterations int
+
+	StartTime time.Time
+	EndTime   time.Time
 }
 
 func NewGrid(size int, start, end pair.Pair) Grid {
@@ -77,9 +80,13 @@ func (g *Grid) Restart(keepLayout bool) {
 	g.Iterations = 0
 	g.Status = STATUS_IDLE
 	g.Cells = cells
+
+	g.StartTime = time.Now()
+	g.EndTime = time.Now()
 }
 
 func (grid *Grid) DoDijkstra() {
+	grid.StartTime = time.Now()
 	grid.Status = STATUS_PATHING
 	pq := PriorityQueue{}
 
@@ -99,6 +106,7 @@ func (grid *Grid) DoDijkstra() {
 	for pq.Len() > 0 {
 		select {
 		case <-stopSignal:
+			grid.EndTime = time.Now()
 			grid.Status = STATUS_IDLE
 			return
 		default:
@@ -143,6 +151,7 @@ func (grid *Grid) DoDijkstra() {
 		}
 	}
 
+	grid.EndTime = time.Now()
 	grid.Status = STATUS_END_SUCCESS
 	success := grid.constructPath()
 	if !success {
@@ -151,6 +160,7 @@ func (grid *Grid) DoDijkstra() {
 }
 
 func (grid *Grid) DoAStar() {
+	grid.StartTime = time.Now()
 	grid.Status = STATUS_PATHING
 	for i := range grid.Cells {
 		for j := range grid.Cells[i] {
@@ -170,6 +180,7 @@ func (grid *Grid) DoAStar() {
 	for pq.Len() > 0 {
 		select {
 		case <-stopSignal:
+			grid.EndTime = time.Now()
 			grid.Status = STATUS_IDLE
 			return
 		default:
@@ -213,6 +224,7 @@ func (grid *Grid) DoAStar() {
 		}
 	}
 
+	grid.EndTime = time.Now()
 	grid.Status = STATUS_END_SUCCESS
 	success := grid.constructPath()
 	if !success {

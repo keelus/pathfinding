@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"math"
+	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -47,7 +48,21 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 	screen.DrawImage(c.rect, &c.op)
 	text.Draw(screen, c.title, loadedFont, int(c.x)+c.w/2-c.titleW/2, 33, color.White)
 
-	text.Draw(screen, fmt.Sprintf("Path length: %d | Iterations: %d", c.grid.PathLength, c.grid.Iterations), loadedFont, int(c.x)+c.w/2-150, int(c.y)+c.h+22, color.White)
+	textColor := color.RGBA{255, 255, 255, 255}
+	if c.grid.Status == STATUS_END_NOPATH {
+		textColor = color.RGBA{213, 60, 60, 255}
+	} else if c.grid.Status == STATUS_END_SUCCESS {
+		textColor = color.RGBA{60, 213, 60, 255}
+	}
+
+	var diff time.Duration
+	if c.grid.Status != STATUS_PATHING {
+		diff = c.grid.EndTime.Sub(c.grid.StartTime)
+	} else {
+		diff = time.Now().Sub(c.grid.StartTime)
+	}
+	visualTime := fmt.Sprintf("%.2fs", diff.Seconds())
+	text.Draw(screen, fmt.Sprintf("Path length: %d | Iterations: %d | Time: %s", c.grid.PathLength, c.grid.Iterations, visualTime), loadedFont, int(c.x)+c.w/2-240, int(c.y)+c.h+22, textColor)
 
 	cellSize := (c.w - len(c.grid.Cells)) / len(c.grid.Cells)
 
@@ -57,7 +72,7 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 	bytes[0] = 255
 
 	for i := range bytes {
-		bytes[i] = 0x32
+		bytes[i] = 0x00
 	}
 
 	for i, row := range c.grid.Cells {
@@ -65,17 +80,17 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 			nodeColor := color.RGBA{100, 100, 100, 255}
 
 			if node.IsWall {
-				nodeColor = color.RGBA{0, 0, 0, 255}
+				nodeColor = color.RGBA{30, 30, 30, 255}
 			} else if node.Coord == c.grid.Start.Coord {
-				nodeColor = color.RGBA{0, 255, 0, 255}
+				nodeColor = color.RGBA{60, 213, 60, 255}
 			} else if node.Coord == c.grid.End.Coord {
-				nodeColor = color.RGBA{255, 0, 0, 255}
+				nodeColor = color.RGBA{213, 60, 60, 255}
 			} else if node.IsPath {
-				nodeColor = color.RGBA{243, 240, 90, 255}
+				nodeColor = color.RGBA{255, 255, 255, 255}
 			} else if node.Visited {
-				nodeColor = color.RGBA{66, 135, 245, 255}
+				nodeColor = color.RGBA{50, 139, 181, 255}
 			} else if node.Added {
-				nodeColor = color.RGBA{50, 168, 82, 255}
+				nodeColor = color.RGBA{62, 190, 250, 255}
 			}
 
 			drawNodePixels(i, j, cellSize, rowSize, &bytes, nodeColor)
