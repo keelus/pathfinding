@@ -2,15 +2,14 @@ package main
 
 import (
 	"container/heap"
-	"fmt"
-	"log"
 	"math"
 	"pathfinding/pair"
-	"slices"
 	"time"
-
-	"golang.org/x/exp/maps"
 )
+
+var MS_COOLDOWN = 10
+
+const BASE_WEIGHT = 1
 
 type Status string
 
@@ -22,26 +21,25 @@ const (
 )
 
 type Node struct {
-	Coord   pair.Pair
+	Coord  pair.Pair
+	IsWall bool
+	Prev   *Node
+
+	Cost  float64 // Cost for Dijkstra, Fcost for A*
+	Gcost float64 // For A*
+
 	Visited bool
 	Added   bool
 
-	IsWall bool
-
-	Gcost int // For A*
-	Hcost int // For A*
-	Cost  int // Fcost in A*
-
 	IsPath bool
-	Prev   *Node
 
 	index int
 }
 
 type Grid struct {
 	Cells [][]Node
-	Start pair.Pair
-	End   pair.Pair
+	Start *Node
+	End   *Node
 
 	Status Status
 
@@ -54,11 +52,13 @@ func NewGrid(size int, start, end pair.Pair) Grid {
 	for i := 0; i < size; i++ {
 		cells[i] = make([]Node, size)
 		for j := 0; j < size; j++ {
-			cells[i][j] = Node{Coord: pair.New(i, j), Cost: math.MaxInt}
+			cells[i][j] = Node{
+				Coord: pair.New(i, j),
+				Cost:  math.MaxInt}
 		}
 	}
 
-	return Grid{Cells: cells, Start: start, End: end, Status: STATUS_IDLE}
+	return Grid{Cells: cells, Start: &cells[start.I][start.J], End: &cells[end.I][end.J], Status: STATUS_IDLE}
 }
 
 func (g *Grid) Restart(keepLayout bool) {
@@ -66,60 +66,29 @@ func (g *Grid) Restart(keepLayout bool) {
 	for i := 0; i < len(g.Cells); i++ {
 		cells[i] = make([]Node, len(g.Cells))
 		for j := 0; j < len(g.Cells); j++ {
-			if !keepLayout {
-				cells[i][j] = Node{Coord: pair.New(i, j), Cost: math.MaxInt}
-			} else {
-				cells[i][j] = Node{Coord: pair.New(i, j), Cost: math.MaxInt, IsWall: g.Cells[i][j].IsWall}
-			}
+			cells[i][j] = Node{Coord: pair.New(i, j), IsWall: keepLayout && g.Cells[i][j].IsWall}
 		}
 	}
+
+	g.Start = &cells[g.Start.Coord.I][g.Start.Coord.J]
+	g.End = &cells[g.End.Coord.I][g.End.Coord.J]
+
 	g.PathLength = 0
 	g.Iterations = 0
 	g.Status = STATUS_IDLE
 	g.Cells = cells
 }
 
-type PriorityQueue []*Node
-
-func (pq PriorityQueue) Len() int { return len(pq) }
-func (pq PriorityQueue) Less(i, j int) bool {
-	return pq[i].Cost < pq[j].Cost
-}
-func (pq PriorityQueue) Swap(i, j int) {
-	pq[i], pq[j] = pq[j], pq[i]
-	pq[i].index = i
-	pq[j].index = j
-}
-
-func (pq *PriorityQueue) Push(x interface{}) {
-	n := len(*pq)
-	node := x.(*Node)
-	node.index = n
-	*pq = append(*pq, node)
-}
-
-func (pq *PriorityQueue) Pop() interface{} {
-	old := *pq
-	n := len(old)
-	node := old[n-1]
-	old[n-1] = nil  // avoid memory leak
-	node.index = -1 // for safety
-	*pq = old[0 : n-1]
-	return node
-}
-
-const MS_COOLDOWN = 10
-
 func (grid *Grid) DoDijkstra() {
 	grid.Status = STATUS_PATHING
 	pq := PriorityQueue{}
 
-	grid.Cells[grid.Start.I][grid.Start.J].Cost = 0
-	heap.Push(&pq, &grid.Cells[grid.Start.I][grid.Start.J])
+	grid.Start.Cost = 0
+	heap.Push(&pq, grid.Start)
 
 	for i, row := range grid.Cells {
 		for j := range row {
-			if i != grid.Start.I && j != grid.Start.J {
+			if &grid.Cells[i][j] != grid.Start {
 				grid.Cells[i][j].Cost = math.MaxInt
 			}
 		}
@@ -127,39 +96,34 @@ func (grid *Grid) DoDijkstra() {
 
 	heap.Init(&pq)
 
-	maxVal := -1
-
 	for pq.Len() > 0 {
 		grid.Iterations++
-		if pq.Len() > maxVal {
-			maxVal = pq.Len()
-		}
-		time.Sleep(MS_COOLDOWN * time.Millisecond)
+		time.Sleep(time.Millisecond * time.Duration(MS_COOLDOWN))
+
 		u := heap.Pop(&pq).(*Node)
 
 		if u.Visited {
 			continue
 		}
 
-		if u.Coord == grid.End {
+		if u == grid.End {
 			break
 		}
 
 		u.Visited = true
 
-		directions := []pair.Pair{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
-
+		directions := []pair.Pair{pair.Up(), pair.Down(), pair.Left(), pair.Right()}
 		for _, dir := range directions {
-			newPos := u.Coord.Add(dir)
-			if newPos.I >= 0 && newPos.I < len(grid.Cells) && newPos.J >= 0 && newPos.J < len(grid.Cells[0]) {
-				neighbor := &grid.Cells[newPos.I][newPos.J]
+			neighborPos := u.Coord.Add(dir)
+
+			if neighborPos.InBounds(0, 0, len(grid.Cells), len(grid.Cells[0])) {
+				neighbor := &grid.Cells[neighborPos.I][neighborPos.J]
 
 				if neighbor.IsWall || neighbor.Visited {
 					continue
 				}
 
 				alt := u.Cost + 1
-
 				if !neighbor.IsWall && alt < neighbor.Cost {
 					neighbor.Cost = alt
 					neighbor.Prev = u
@@ -172,120 +136,104 @@ func (grid *Grid) DoDijkstra() {
 		}
 	}
 
-	node := &grid.Cells[grid.End.I][grid.End.J]
-	if node.Prev == nil {
-		grid.PathLength = -1
+	grid.Status = STATUS_END_SUCCESS
+	success := grid.constructPath()
+	if !success {
 		grid.Status = STATUS_END_NOPATH
-	} else {
-		grid.Status = STATUS_END_SUCCESS
-		grid.PathLength = node.Cost - 1
-
-		for node != nil {
-			node.IsPath = true
-			node = node.Prev
-		}
 	}
-
-	fmt.Printf("Dijkstra Finished\nDistance:%d", grid.PathLength)
 }
 
 func (grid *Grid) DoAStar() {
-	openSet := make(map[pair.Pair]struct{})
-
-	cameFrom := make(map[pair.Pair]pair.Pair)
-
-	gScore := make(map[pair.Pair]float64)
-	fScore := make(map[pair.Pair]float64)
-
+	grid.Status = STATUS_PATHING
 	for i := range grid.Cells {
 		for j := range grid.Cells[i] {
-			gScore[pair.New(i, j)] = math.MaxFloat64
-			fScore[pair.New(i, j)] = math.MaxFloat64
+			if grid.Start != &grid.Cells[i][j] {
+				grid.Cells[i][j].Gcost = math.MaxFloat64
+				grid.Cells[i][j].Cost = math.MaxFloat64
+			}
 		}
 	}
 
-	gScore[grid.Start] = 0
-	fScore[grid.Start] = grid.h(grid.Start)
+	grid.Start.Gcost = 0
+	grid.Start.Cost = grid.h(*grid.Start)
 
-	openSet[grid.Start] = struct{}{}
+	pq := PriorityQueue{grid.Start}
+	heap.Init(&pq)
 
-	for len(openSet) > 0 {
-		time.Sleep(10 * time.Millisecond)
-		var minFscore float64 = 0
-		minPair := pair.New(0, 0)
+	for pq.Len() > 0 {
+		grid.Iterations++
+		time.Sleep(time.Duration(MS_COOLDOWN) * time.Millisecond)
 
-		p := 0
-		for pair := range openSet {
-			fs := fScore[pair]
-			if p == 0 || fs < minFscore {
-				minFscore = fs
-				minPair = pair
-			}
-			p++
-		}
+		current := heap.Pop(&pq).(*Node)
+		current.Visited = true
 
-		current := minPair
-		grid.Cells[current.I][current.J].Visited = true
-		if current.Eq(grid.End) {
-			log.Print("We ended!")
+		if current == grid.End {
 			break
 		}
 
-		delete(openSet, current)
-
 		directions := []pair.Pair{pair.Up(), pair.Down(), pair.Left(), pair.Right()}
 		for _, dir := range directions {
-			neighbor := current.Add(dir)
-			if neighbor.InBounds(0, 0, len(grid.Cells), len(grid.Cells[0])) {
-				if !grid.Cells[neighbor.I][neighbor.J].IsWall {
-					tentative_gScore := gScore[current] + g(current, neighbor)
-					if tentative_gScore < gScore[neighbor] {
-						cameFrom[neighbor] = current
-						gScore[neighbor] = tentative_gScore
-						fScore[neighbor] = tentative_gScore + grid.h(neighbor)
+			neighborPos := current.Coord.Add(dir)
 
-						if !slices.Contains(maps.Keys(openSet), neighbor) {
-							grid.Cells[neighbor.I][neighbor.J].Added = true
-							openSet[neighbor] = struct{}{}
-						}
+			if neighborPos.InBounds(0, 0, len(grid.Cells), len(grid.Cells[0])) {
+				neighbor := &grid.Cells[neighborPos.I][neighborPos.J]
+
+				if neighbor.IsWall {
+					continue
+				}
+
+				gcost := current.Gcost + g(*current, *neighbor)
+				if gcost < neighbor.Gcost {
+					neighbor.Prev = current
+					neighbor.Gcost = gcost
+					neighbor.Cost = gcost + grid.h(*neighbor)
+
+					if neighbor.Added {
+						heap.Fix(&pq, neighbor.index)
+					} else {
+						neighbor.Added = true
+						heap.Push(&pq, neighbor)
 					}
 				}
 			}
 		}
 	}
 
-	log.Print(cameFrom)
+	grid.Status = STATUS_END_SUCCESS
+	success := grid.constructPath()
+	if !success {
+		grid.Status = STATUS_END_NOPATH
+	}
+}
 
-	cur := grid.End
-	for {
-		if !cur.Eq(grid.Start) && !cur.Eq(grid.End) {
-			grid.Cells[cur.I][cur.J].IsPath = true
-			grid.PathLength++
-		}
+func g(a, b Node) float64 {
+	return BASE_WEIGHT // This could be changed to use diagonals (e.g 1 for horizontal & vertical, 1.4 for diagonals)
+}
 
-		if _, ok := cameFrom[cur]; ok {
-			cur = cameFrom[cur]
-		} else {
-			if cur == grid.End {
-				grid.Status = STATUS_END_NOPATH
-			} else {
-				grid.Status = STATUS_END_SUCCESS
+func (grid Grid) h(a Node) float64 {
+	dy := math.Abs(float64(a.Coord.I - grid.End.Coord.I))
+	dx := math.Abs(float64(a.Coord.J - grid.End.Coord.J))
+	heuristic := BASE_WEIGHT * (dx + dy)
+	tb := float64(1)/float64(len(grid.Cells)*len(grid.Cells[0])) + 1 // Tie breaker
+	return heuristic * tb
+}
+
+func (grid *Grid) constructPath() bool {
+	node := grid.End
+
+	if node.Prev == nil {
+		grid.PathLength = -1
+		return false
+	} else {
+		for node != nil {
+			if node != grid.Start && node != grid.End {
+				grid.PathLength++
 			}
-			break
+
+			node.IsPath = true
+			node = node.Prev
 		}
 	}
 
-	fmt.Print("A* Finished\n")
-}
-
-func g(a, b pair.Pair) float64 {
-	return 1
-}
-func (grid Grid) h(a pair.Pair) float64 {
-	// return 10 * int(math.Abs(float64(a.I-grid.End.I))+math.Abs(float64(a.J-grid.End.J)))
-	dy := math.Abs(float64(a.I - grid.End.I))
-	dx := math.Abs(float64(a.J - grid.End.J))
-	heuristic := 1 * (dx + dy)
-	tb := float64(1)/float64(len(grid.Cells)*len(grid.Cells[0])) + 1 // Tie breaker
-	return heuristic * tb
+	return true
 }

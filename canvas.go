@@ -54,6 +54,8 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 	rowSize := c.w * 4
 	bytes := make([]byte, c.w*c.w*4)
 
+	bytes[0] = 255
+
 	for i := range bytes {
 		bytes[i] = 0x32
 	}
@@ -64,9 +66,9 @@ func (c *Canvas) Draw(screen *ebiten.Image) {
 
 			if node.IsWall {
 				nodeColor = color.RGBA{0, 0, 0, 255}
-			} else if node.Coord == c.grid.Start {
+			} else if node.Coord == c.grid.Start.Coord {
 				nodeColor = color.RGBA{0, 255, 0, 255}
-			} else if node.Coord == c.grid.End {
+			} else if node.Coord == c.grid.End.Coord {
 				nodeColor = color.RGBA{255, 0, 0, 255}
 			} else if node.IsPath {
 				nodeColor = color.RGBA{243, 240, 90, 255}
@@ -87,7 +89,14 @@ func drawNodePixels(cellI, cellJ int, cellSize int, rowSize int, bytes *[]byte, 
 	for i := 0; i < cellSize; i++ {
 		for j := 0; j < cellSize; j++ {
 			// index := base........ + vertical displa. + horizontal displaceme. + 1 row margin??
-			index := i*rowSize + 4*j + 4*cellJ*cellSize + cellI*rowSize*cellSize + rowSize*cellI + 4*cellJ + rowSize + 4
+
+			index := i * rowSize                // Vertical displacement
+			index += rowSize * cellI            // One pixel margin (between rows)
+			index += cellI * rowSize * cellSize // Vertical specific displacement
+
+			index += 4 * j                  // Horizontal displacement
+			index += 4 * (cellJ * cellSize) // Horizontal specific displacement
+			index += 4 * cellJ              // One pixel margin (between cols)
 
 			(*bytes)[index] = cellColor.R
 			(*bytes)[index+1] = cellColor.G
