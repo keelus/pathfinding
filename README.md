@@ -22,6 +22,8 @@ To make the downloaded binary executable, run:
 ```bash
 chmod +x pathfinding_<rest of the file>
 ```
+In newer versions of macOS, you might need to run `xattr -c pathfinding_<rest of the filename>` if you get an error message while opening the app.
+
 Then, you can open it running:
 ```bash
 ./pathfinding_<rest of the file>
