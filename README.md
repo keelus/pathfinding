@@ -13,11 +13,19 @@ A visual implementation of Dijkstra and A*, side by side, written in golang with
 
 
 ## ⬇️ Install & run it
-Simply download the [latest release](https://github.com/keelus/pathfinding/releases/latest) binary file and execute it.
+The project is compatible with Windows, Linux and macOS.
 
+To use it, simply download the [latest release](https://github.com/keelus/pathfinding/releases/latest) binary file and execute it.
+
+### 🍎 macOS
+To make the downloaded binary executable on macOS, run:
+```bash
+xattr -c pathfinding_darwin-arm64-vX.X.X.app
+```
+### 🐧 Linux
 To make the downloaded binary executable on Linux, run:
 ```bash
-chmod +x pathfinding_linux-amd64
+chmod +x pathfinding_linux-amd64-vX.X.X
 ```
 
 ## Compile
