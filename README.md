@@ -15,6 +15,11 @@ A visual implementation of Dijkstra and A*, side by side, written in golang with
 ## ⬇️ Install & run it
 Simply download the [latest release](https://github.com/keelus/pathfinding/releases/latest) binary file and execute it.
 
+To make the downloaded binary executable on Linux, run:
+```bash
+chmod +x pathfinding_linux-amd64
+```
+
 ## Compile
 ### 🪟 Windows
 You can compile the app in Windows directly without a C compiler. Just run:
