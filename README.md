@@ -44,7 +44,7 @@ go-winres simply --icon assets/icons/greenFlag.png --manifest gui
 go build -o pathfinding.exe -ldflags -H=windowsgui
 ```
 ### 🐧 Linux or macOS
-Compiling a Ebitengine app in linux and macOS requires having a c compiler installed. Check [ebitengine dependencies](https://ebitengine.org/en/documents/install.html#Installing_dependencies).
+Compiling an Ebitengine app in linux and macOS requires having a c compiler installed. Check [ebitengine dependencies](https://ebitengine.org/en/documents/install.html#Installing_dependencies).
 Once done, simply run:
 ```bash
 go mod tidy
