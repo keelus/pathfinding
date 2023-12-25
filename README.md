@@ -17,15 +17,14 @@ The project is compatible with Windows, Linux and macOS.
 
 To use it, simply download the [latest release](https://github.com/keelus/pathfinding/releases/latest) binary file and execute it.
 
-### 🍎 macOS
-To make the downloaded binary executable on macOS, run:
+### 🐧 Linux & macOS
+To make the downloaded binary executable, run:
 ```bash
-xattr -c pathfinding_darwin-arm64-vX.X.X.app
+chmod +x pathfinding_<rest of the file>
 ```
-### 🐧 Linux
-To make the downloaded binary executable on Linux, run:
+Then, you can open it running:
 ```bash
-chmod +x pathfinding_linux-amd64-vX.X.X
+./pathfinding_<rest of the file>
 ```
 
 ## Compile
