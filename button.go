@@ -5,6 +5,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
+	"golang.org/x/image/font"
 )
 
 type Button struct {
@@ -16,13 +17,14 @@ type Button struct {
 	titleW     int
 	grid       Grid
 	buttonIcon *ebiten.Image
+	fontFace   font.Face
 
 	hovered  bool
 	active   bool
 	disabled bool
 }
 
-func NewButton(w, h int, x, y float64, title string, active bool, buttonIcon *ebiten.Image) Button {
+func NewButton(w, h int, x, y float64, title string, active bool, buttonIcon *ebiten.Image, fontFace font.Face) Button {
 	rect := ebiten.NewImage(w, h)
 	rect.Fill(color.RGBA{255, 0, 0, 255})
 
@@ -37,6 +39,7 @@ func NewButton(w, h int, x, y float64, title string, active bool, buttonIcon *eb
 		titleW:     text.BoundString(mononokiFFace, title).Dx(),
 		active:     active,
 		buttonIcon: buttonIcon,
+		fontFace:   fontFace,
 	}
 }
 
@@ -46,7 +49,7 @@ func (b *Button) Draw(screen *ebiten.Image) {
 		if b.disabled {
 			textColor = color.RGBA{0x4b, 0x4b, 0x4b, 255}
 		}
-		text.Draw(screen, b.title, mononokiFFace, int(b.x)+b.w/2-b.titleW/2, int(b.y)+b.h/2+18/2-5, textColor)
+		text.Draw(screen, b.title, b.fontFace, int(b.x)+b.w/2-b.titleW/2, int(b.y)+b.h/2+18/2-5, textColor)
 	} else {
 		iconOps := ebiten.DrawImageOptions{}
 		iconOps.GeoM.Translate(b.x+2, b.y+2)

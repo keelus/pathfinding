@@ -14,6 +14,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/hajimehoshi/ebiten/v2/text"
+	"github.com/pkg/browser"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 )
@@ -40,6 +41,7 @@ var (
 	buttonTerrainSizeS, buttonTerrainSizeM, buttonTerrainSizeL Button
 	buttonPlay                                                 Button
 	buttonMsMinus, buttonMsPlus                                Button
+	buttonGithub                                               Button
 
 	categoryTools, categoryClear, categoryTerrainSize, categoryCooldown string
 )
@@ -49,8 +51,10 @@ var (
 	canvasSize int
 	cellSize   int
 
-	mononokiFFace font.Face
-	stopSignal    chan struct{}
+	iconGithub *ebiten.Image
+
+	mononokiFFace, mononokiFFaceSmall font.Face
+	stopSignal                        chan struct{}
 
 	iterationCooldownMS int
 )
@@ -93,8 +97,8 @@ func (g *Game) Update() error {
 	buttonTerrainSizeL.hover(posX, posY)
 	buttonPlay.hover(posX, posY)
 	buttonMsMinus.hover(posX, posY)
-
 	buttonMsPlus.hover(posX, posY)
+	buttonGithub.hover(posX, posY)
 
 	// BUTTON SELECTION STATES
 	switch canvasSize {
@@ -214,8 +218,8 @@ func (g *Game) Update() error {
 				func() {
 					close(stopSignal)
 					for canvasA.grid.Status == STATUS_PATHING || canvasB.grid.Status == STATUS_PATHING {
-						// Just wait until both closed to prevent closing the closed channel. Can happen in high cooldown, when pressing
-						// the stop button multiple times.
+						// Wait until both algorithms have stopped to prevent closing the closed channel.
+						// Could happen in high cooldown setting and/or when pressing the stop button multiple times.
 					}
 				}()
 			}
@@ -241,6 +245,8 @@ func (g *Game) Update() error {
 			} else if iterationCooldownMS >= 100 && iterationCooldownMS < 1000 {
 				iterationCooldownMS += 100
 			}
+		} else if buttonGithub.hovered {
+			browser.OpenURL("https://github.com/keelus/pathfinding")
 		}
 	}
 
@@ -301,6 +307,7 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	buttonPlay.Draw(screen)
 	buttonMsMinus.Draw(screen)
 	buttonMsPlus.Draw(screen)
+	buttonGithub.Draw(screen)
 
 	// LEFT TEXTS DRAWING
 	textColor := color.RGBA{255, 255, 255, 255}
@@ -308,15 +315,19 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		textColor = color.RGBA{0x4b, 0x4b, 0x4b, 255}
 	}
 
-	text.Draw(screen, categoryTools, mononokiFFace, 15, 55, textColor)
-	text.Draw(screen, categoryClear, mononokiFFace, 15, 210+40, textColor)
-	text.Draw(screen, "Canvas size", mononokiFFace, 15, 210+40+120, textColor)
-	text.Draw(screen, categoryCooldown, mononokiFFace, 15, SCREEN_HEIGHT-135+30, color.White)
-	text.Draw(screen, fmt.Sprintf("%dms", iterationCooldownMS), mononokiFFace, 80, SCREEN_HEIGHT-105+30, color.White)
+	text.Draw(screen, categoryTools, mononokiFFace, 15, 45, textColor)
+	text.Draw(screen, categoryClear, mononokiFFace, 15, 240, textColor)
+	text.Draw(screen, "Canvas size", mononokiFFace, 15, 360, textColor)
+	text.Draw(screen, categoryCooldown, mononokiFFace, 15, SCREEN_HEIGHT-115, color.White)
+	text.Draw(screen, fmt.Sprintf("%dms", iterationCooldownMS), mononokiFFace, 80, SCREEN_HEIGHT-85, color.White)
 
 	// CANVAS DRAWING
 	canvasA.Draw(screen)
 	canvasB.Draw(screen)
+
+	iconGithubOp := &ebiten.DrawImageOptions{}
+	iconGithubOp.GeoM.Translate(SCREEN_WIDTH/2-25, 10)
+	screen.DrawImage(iconGithub, iconGithubOp)
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
@@ -332,6 +343,7 @@ func main() {
 	ebiten.SetWindowIcon([]image.Image{loadImage("assets/icons/greenFlag.png")})
 
 	mononokiFFace = getFont("assets/fonts/mononoki.ttf", 18)
+	mononokiFFaceSmall = getFont("assets/fonts/mononoki.ttf", 14)
 
 	activeTool = PENCIL
 
@@ -344,24 +356,28 @@ func main() {
 	canvasB.SetGrid(NewGrid(SIZE_M, pair.New(SIZE_M-1, 0), pair.New(0, SIZE_M-1)))
 
 	// LEFT BUTTONS
-	buttonPencil = NewButton(50, 50, (200-100)/2, 100-35, "P", true, getImage("assets/icons/pencil.png"))
-	buttonEraser = NewButton(50, 50, (200-100)/2+50, 100-35, "E", false, getImage("assets/icons/eraser.png"))
-	buttonFlagStart = NewButton(50, 50, (200-100)/2, 150-35, "F1", false, getImage("assets/icons/greenFlag.png"))
-	buttonFlagEnd = NewButton(50, 50, (200-100)/2+50, 150-35, "F2", false, getImage("assets/icons/redFlag.png"))
+	buttonPencil = NewButton(50, 50, 50, 55, "P", true, getImage("assets/icons/pencil.png"), mononokiFFace)
+	buttonEraser = NewButton(50, 50, 100, 55, "E", false, getImage("assets/icons/eraser.png"), mononokiFFace)
+	buttonFlagStart = NewButton(50, 50, 50, 105, "F1", false, getImage("assets/icons/greenFlag.png"), mononokiFFace)
+	buttonFlagEnd = NewButton(50, 50, 100, 105, "F2", false, getImage("assets/icons/redFlag.png"), mononokiFFace)
 
-	buttonClearPath = NewButton(150, 40, (200-150)/2, 250-30+40, "Clear path", false, nil)
-	buttonClearCanvas = NewButton(150, 40, (200-150)/2, 290-30+40, "Clear canvas", false, nil)
+	buttonClearPath = NewButton(150, 40, 25, 250, "Clear path", false, nil, mononokiFFace)
+	buttonClearCanvas = NewButton(150, 40, 25, 290, "Clear canvas", false, nil, mononokiFFace)
 
-	buttonGenerateTerrain = NewButton(170, 40, (200-170)/2, 180, "Generate terrain", false, nil)
+	buttonGenerateTerrain = NewButton(170, 40, 15, 170, "Generate terrain", false, nil, mononokiFFace)
 
-	buttonTerrainSizeS = NewButton(40, 40, (200-150)/2, 250-30+40+120, "S", false, nil)
-	buttonTerrainSizeM = NewButton(40, 40, (200-150)/2+40+15, 250-30+40+120, "M", false, nil)
-	buttonTerrainSizeL = NewButton(40, 40, (200-150)/2+40+15+40+15, 250-30+40+120, "L", false, nil)
+	buttonTerrainSizeS = NewButton(40, 40, 25, 370, "S", false, nil, mononokiFFace)
+	buttonTerrainSizeM = NewButton(40, 40, 80, 370, "M", false, nil, mononokiFFace)
+	buttonTerrainSizeL = NewButton(40, 40, 135, 370, "L", false, nil, mononokiFFace)
 
-	buttonPlay = NewButton(150, 40, (200-150)/2, 430+40, "Play", false, nil)
+	buttonPlay = NewButton(150, 40, 25, 460, "Play", false, nil, mononokiFFace)
 
-	buttonMsMinus = NewButton(30, 30, (200-150)/2, SCREEN_HEIGHT-125+30, "-", false, nil)
-	buttonMsPlus = NewButton(30, 30, (200-150)/2+120, SCREEN_HEIGHT-125+30, "+", false, nil)
+	buttonMsMinus = NewButton(30, 30, 25, SCREEN_HEIGHT-105, "-", false, nil, mononokiFFace)
+	buttonMsPlus = NewButton(30, 30, 145, SCREEN_HEIGHT-105, "+", false, nil, mononokiFFace)
+
+	// buttonGithub = NewButton(180, 30, (200-150)/2, SCREEN_HEIGHT-35, "   /keelus/pathfinding", false, nil, mononokiFFaceSmall)
+	buttonGithub = NewButton(190, 30, SCREEN_WIDTH/2-30, 5, "    /keelus/pathfinding", false, nil, mononokiFFaceSmall)
+	iconGithub = getImage("assets/icons/github.png")
 
 	// LEFT TEXTS
 	categoryTools = "Tools"

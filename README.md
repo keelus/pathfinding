@@ -8,6 +8,10 @@
 ## ℹ️ Description
 A visual implementation of Dijkstra and A*, side by side, written in golang with [Ebitengine](https://ebitengine.org/).
 
+## 📸 Screenshots
+<img src="https://github.com/keelus/pathfinding/assets/86611436/fd1212cc-13b7-4bfb-977b-4e442a745291"/>
+
+
 ## ⬇️ Install & run it
 Simply download the [latest release](https://github.com/keelus/pathfinding/releases/latest) binary file and execute it.
 
